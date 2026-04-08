@@ -13,23 +13,32 @@ class GenderNaiveBayes:
             self.mle[i]["last"] = {}
             self.mle[i]["first"] = {}
             self.mle[i]["length"] = {}
-            self.mle[i]["vowel_count"] = {}
+            self.mle[i]["vowel_ratio"] = {}
+            self.mle[i]["suffix"] = {}
 
     def extract(self, name: str):
         info = {}
         lower_name = name.lower()
+        length = len(lower_name)
+        vowels = sum(1 for ch in lower_name if ch in 'aeiou')
+
+        vowel_ratio = round(vowels / length, 2) if length > 0 else 0
+        last_two = lower_name[-2:] if len(lower_name) >= 2 else lower_name
+
         info = {
             "last": lower_name[-1],
             "first": lower_name[0],
             "length": len(lower_name),
-            "vowel_count": sum(1 for ch in lower_name if ch in 'aeiou')
+            "vowel_ratio": vowel_ratio,
+            "suffix": last_two
         }
 
         return info
     
     def count_tot(self, feature):
         if feature == "last" or feature == "first": return  26
-        if feature == "vowel_count": return 20
+        if feature == "vowel_ratio": return 100
+        if feature == "suffix": return (26 * 26)
         return 50
 
     def fit(self, df: pd.DataFrame):
@@ -55,23 +64,27 @@ class GenderNaiveBayes:
 
         self.class_totals = {0: girls_count, 1: boys_count}
 
-    def predict(self, name: str):
-        info = self.extract(name)
+    def predict(self, df):
+        result = []
+        for name in df:
+            info = self.extract(name)
 
-        score_0 = np.log(self.priors.get("girls_prior"))
-        score_1 = np.log(self.priors.get("boys_prior"))
+            score_0 = np.log(self.priors.get("girls_prior"))
+            score_1 = np.log(self.priors.get("boys_prior"))
 
-        for feature in info:
-            val = info[feature]
-            prob_g = 0
-            prob_b = 0
-            prev = self.count_tot(feature)
-            
-            prob_g = self.mle[0][feature].get(val, 1 / (self.class_totals.get(0) + prev))
-            prob_b = self.mle[1][feature].get(val, 1 / (self.class_totals.get(1) + prev))
+            for feature in info:
+                val = info[feature]
+                prob_g = 0
+                prob_b = 0
+                prev = self.count_tot(feature)
+                
+                prob_g = self.mle[0][feature].get(val, 1 / (self.class_totals.get(0) + prev))
+                prob_b = self.mle[1][feature].get(val, 1 / (self.class_totals.get(1) + prev))
 
-            score_0 += np.log(prob_g)
-            score_1 += np.log(prob_b)
+                score_0 += np.log(prob_g)
+                score_1 += np.log(prob_b)
 
-        if(score_1 >= score_0): return 1
-        else: return 0
+            if(score_1 >= score_0): result.append(1)
+            else: result.append(0)
+
+        return pd.DataFrame(result)
